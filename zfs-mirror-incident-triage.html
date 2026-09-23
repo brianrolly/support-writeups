@@ -41,13 +41,96 @@
         <section>
           <p class="eyebrow">Evidence</p>
           <h2>Trace the failure from the kernel to the physical slot</h2>
-          <p>Kernel logs showed repeated write-command timeouts, an attempted controller reset, and a reset failure. Linux then disabled the controller, and ZFS removed the corresponding mirror member after I/O errors.</p>
+          <p>The investigation used read-only commands and stable identifiers. The excerpts below are from the incident transcript collected on September 4, 2026. Hostnames, full serial numbers, and full EUI values are shortened; device states, sizes, counters, and error messages are unchanged.</p>
+
+          <h3>1. Confirm the pool state before touching a device</h3>
+          <p><code>zpool status</code> established that the pool was still serving data from one member, the peer had been removed, and ZFS had not reported data corruption.</p>
+          <pre><code>root@proxmox-lab:~# zpool status -v rpool
+  pool: rpool
+ state: DEGRADED
+status: One or more devices have been removed.
+        Sufficient replicas exist for the pool to continue functioning in a
+        degraded state.
+config:
+
+        NAME                         STATE     READ WRITE CKSUM
+        rpool                        DEGRADED     0     0     0
+          mirror-0                   DEGRADED     0     0     0
+            nvme-eui.…ed56-part3     ONLINE       0     0     0
+            nvme-eui.…ed45-part3     REMOVED      0     0     0
+
+errors: No known data errors</code></pre>
+
+          <h3>2. Compare the two namespaces at the block-device layer</h3>
+          <p>The failed controller still appeared in inventory, but its namespace reported <code>0 B</code>. The surviving namespace exposed the expected 1.8 TiB capacity and partition layout.</p>
+          <pre><code>root@proxmox-lab:~# lsblk -o NAME,SIZE,TYPE,FSTYPE,MODEL,SERIAL \
+  /dev/nvme0n1 /dev/nvme1n1
+NAME          SIZE TYPE FSTYPE     MODEL                   SERIAL
+nvme0n1         0B disk            Samsung SSD 990 PRO 2TB …566X
+├─nvme0n1p1  1007K part
+├─nvme0n1p2     1G part vfat
+└─nvme0n1p3   1.8T part zfs_member
+nvme1n1       1.8T disk            Samsung SSD 990 PRO 2TB …583Z
+├─nvme1n1p1  1007K part
+├─nvme1n1p2     1G part vfat
+└─nvme1n1p3   1.8T part zfs_member</code></pre>
+
+          <h3>3. Reconstruct the failure sequence from the kernel</h3>
+          <p>The kernel log ruled out a stale ZFS status. Multiple writes timed out, the reset failed, Linux disabled the controller, and ZFS then recorded I/O errors against the same stable member.</p>
+          <pre><code>root@proxmox-lab:~# journalctl -k -b --no-pager | \
+  grep -Ei 'nvme0|zio pool=rpool' | tail
+May 01 09:53:21 kernel: nvme nvme0: I/O Cmd QID 9 timeout,
+                         aborting req_op:WRITE(1) size:4096
+May 01 09:53:21 kernel: nvme nvme0: I/O Cmd QID 2 timeout,
+                         reset controller
+May 01 09:53:21 kernel: nvme nvme0: Device not ready;
+                         aborting reset, CSTS=0x1
+May 01 09:53:21 kernel: nvme nvme0: Disabling device after
+                         reset failure: -19
+May 01 09:53:21 kernel: zio pool=rpool
+                         vdev=/dev/disk/by-id/nvme-eui.…ed45-part3
+                         error=5 type=2 size=4096
+May 10 18:38:40 kernel: FAT-fs (nvme0n1p2): unable to read boot sector</code></pre>
+
+          <h3>4. Correlate the logical member to a stable hardware path</h3>
+          <p><code>udevadm</code> linked the failed member’s EUI and serial suffix to PCI address <code>0000:09:00.0</code>. The healthy member resolved to <code>0000:0c:00.0</code>. Board documentation then mapped those paths to the chipset-connected <code>M2_2</code> slot and CPU-connected <code>M2_1</code> slot respectively.</p>
+          <pre><code>root@proxmox-lab:~# udevadm info --query=property \
+  --name=/dev/nvme0n1 | grep -E 'ID_(SERIAL_SHORT|WWN|PATH)='
+ID_SERIAL_SHORT=…566X
+ID_WWN=eui.…ed45
+ID_PATH=pci-0000:09:00.0-nvme-1
+
+root@proxmox-lab:~# udevadm info --query=property \
+  --name=/dev/nvme1n1 | grep -E 'ID_(SERIAL_SHORT|WWN|PATH)='
+ID_SERIAL_SHORT=…583Z
+ID_WWN=eui.…ed56
+ID_PATH=pci-0000:0c:00.0-nvme-1</code></pre>
           <div class="fact-grid">
             <div class="fact"><span>Pool</span><strong>Degraded mirror</strong></div>
-            <div class="fact"><span>Failed member</span><strong>Controller present, block device unusable</strong></div>
-            <div class="fact"><span>Surviving member</span><strong>SMART passed, zero media errors</strong></div>
+            <div class="fact"><span>Failed path</span><strong>PCI 09:00.0 · M2_2 · serial …566X</strong></div>
+            <div class="fact"><span>Healthy path</span><strong>PCI 0c:00.0 · M2_1 · serial …583Z</strong></div>
           </div>
-          <p>Stable device identifiers, PCI addresses, serial numbers, motherboard documentation, and EFI partition state were correlated to map the failed logical member to the exact physical connector. The host was also confirmed to be booting from the healthy disk’s EFI System Partition.</p>
+        </section>
+
+        <section>
+          <p class="eyebrow">Survivor validation</p>
+          <h2>Verify both data health and the remaining boot path</h2>
+          <p>A healthy pool member was necessary but not sufficient. The remaining NVMe device also had to pass its own health checks, and the host needed a working EFI System Partition on that same disk.</p>
+          <pre><code>root@proxmox-lab:~# smartctl -x /dev/nvme1 | \
+  grep -E -e 'assessment|Temperature:|Available Spare:|Percentage Used:' \
+  -e 'Media and Data|Error Information Log'
+SMART overall-health self-assessment test result: PASSED
+Temperature:                        33 Celsius
+Available Spare:                    100%
+Percentage Used:                    4%
+Media and Data Integrity Errors:    0
+Error Information Log Entries:      0
+
+root@proxmox-lab:~# proxmox-boot-tool status
+System currently booted with uefi
+3C36-9255 is configured with: uefi (current kernels present)
+mount of /dev/disk/by-uuid/3C3E-4FC4 failed - skipping</code></pre>
+          <p>This did not prove the surviving SSD could never fail. It established the narrower facts required for a safe handoff: the readable member had no recorded media errors, the host was currently bootable from its EFI partition, and the failed member’s EFI partition was also unreadable.</p>
         </section>
 
         <section>
@@ -55,7 +138,35 @@
           <h2>The configured backups shared the failed storage domain</h2>
           <p>The only scheduled archives were stored on local storage backed by the same degraded pool. That meant they were convenient restore points, but not independent recovery copies.</p>
           <p>A guest named for backups also resided on the same pool. Without proof of external replication, its presence could not be counted as off-host protection.</p>
+          <pre><code>root@proxmox-lab:~# pvesh get /cluster/backup --output-format json-pretty
+[
+  {
+    "mode": "snapshot",
+    "storage": "local",
+    "prune-backups": { "keep-last": "3" },
+    "vmid": "&lt;two selected guests&gt;"
+  }
+]
+
+root@proxmox-lab:~# pvesm status
+Name       Type     Status
+local      dir      active
+local-zfs  zfspool  active
+
+# Storage mapping confirmed both targets were backed by rpool.</code></pre>
           <div class="callout warning"><p><strong>Recovery gate:</strong> verify and copy critical data to an independent destination before powering down, reseating hardware, or modifying the pool.</p></div>
+        </section>
+
+        <section>
+          <p class="eyebrow">Evidence-based decisions</p>
+          <h2>Each observation changed the next action</h2>
+          <div class="result-list">
+            <div class="result"><span class="result-mark">1</span><div><strong><code>DEGRADED</code> plus <code>REMOVED</code>:</strong> stop treating the incident as a cosmetic alert and avoid new storage load.</div></div>
+            <div class="result"><span class="result-mark">2</span><div><strong>Zero-byte namespace plus failed controller reset:</strong> do not use <code>zpool clear</code> or <code>zpool online</code> as a substitute for physical repair.</div></div>
+            <div class="result"><span class="result-mark">3</span><div><strong>Stable EUI, serial, and PCI mapping:</strong> give the physical operator an unambiguous failed-slot warning that protects the surviving disk.</div></div>
+            <div class="result"><span class="result-mark">4</span><div><strong>Healthy SMART and EFI evidence:</strong> document the current survival path without overstating long-term reliability.</div></div>
+            <div class="result"><span class="result-mark">5</span><div><strong>Backups on the same pool:</strong> require an independently stored, checksum-verified copy before maintenance.</div></div>
+          </div>
         </section>
 
         <section>
@@ -87,6 +198,8 @@
         <ul>
           <li>Proxmox and ZFS investigation</li>
           <li>Kernel and NVMe failure analysis</li>
+          <li>Command-line evidence collection</li>
+          <li>Stable device-path correlation</li>
           <li>SMART and boot-path verification</li>
           <li>Backup-domain risk assessment</li>
           <li>Hardware-specific escalation</li>
@@ -100,4 +213,3 @@
   <footer class="site-footer"><div class="footer-inner"><p>Sanitized from an authorized infrastructure incident. The replacement remained pending at the time of documentation.</p><p>© 2026 Brian Rollinson</p></div></footer>
 </body>
 </html>
-
