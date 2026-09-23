@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A Linux and OpenSearch support case study: diagnosing a circuit-breaker failure, resizing the JVM heap, and verifying platform recovery.">
+  <title>Recovering a Capacity-Limited Search Platform | Support Writeups</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">SW</span><span>Support Writeups</span></a>
+      <div class="nav-links"><a href="index.html#cases">Case studies</a><a href="index.html#method">Method</a><a href="mailto:brianrolly@icloud.com">Contact</a></div>
+    </nav>
+  </header>
+
+  <main id="main" class="page">
+    <header class="article-hero">
+      <p class="eyebrow">Case 01 · Linux and Application Support</p>
+      <h1>Recovering a Capacity-Limited Search Platform</h1>
+      <p class="lede">A seven-day aggregation failed with a circuit-breaker error that initially looked like a client-side parsing problem. The real cause was a severely undersized JVM heap on an otherwise healthy host.</p>
+      <div class="meta-row">
+        <span class="status resolved">Fixed and verified</span>
+        <span class="tag">OpenSearch</span><span class="tag">JVM</span><span class="tag">systemd</span><span class="tag">Capacity</span>
+      </div>
+    </header>
+
+    <div class="article-layout">
+      <article class="article">
+        <section>
+          <p class="eyebrow">Situation</p>
+          <h2>A query failed while the platform looked healthy</h2>
+          <p>A routine seven-day measurement was run against a single-node search and monitoring platform. One daily slice worked, but the remaining slices failed. Because the response was piped directly into a JSON processor, the first visible message was “cannot iterate over null.” That looked like a client-side data problem.</p>
+          <p>Reading the raw response exposed the actual failure: the search service had rejected the request because its parent circuit breaker was already near the configured heap limit.</p>
+          <pre><code>circuit_breaking_exception
+data for request would be approximately 974 MB
+configured parent limit was approximately 973 MB</code></pre>
+        </section>
+
+        <section>
+          <p class="eyebrow">Investigation</p>
+          <h2>The request was small. The standing overhead was not.</h2>
+          <div class="fact-grid">
+            <div class="fact"><span>Configured heap</span><strong>1 GB</strong></div>
+            <div class="fact"><span>Host memory</span><strong>12 GB, about 9 GB available</strong></div>
+            <div class="fact"><span>Shard count</span><strong>540</strong></div>
+          </div>
+          <p>The breaker report showed almost no request or field-data allocation. The query itself was not consuming the missing memory. The node was sitting at roughly 83 percent heap usage before it received the request.</p>
+          <p>Old-generation garbage collection had not run, which ruled against a thrashing JVM. The system was not failing unpredictably; it had simply been configured with too little heap for its steady shard overhead.</p>
+          <div class="callout"><p><strong>Root cause:</strong> a 1 GB JVM heap had been left on a 12 GB host. Standing per-shard overhead consumed most of it, leaving too little room for multi-day aggregations.</p></div>
+        </section>
+
+        <section>
+          <p class="eyebrow">Change</p>
+          <h2>Increase capacity without starving the rest of the host</h2>
+          <p>The active JVM options were backed up. Competing overrides were checked in the drop-in directory and service unit. The minimum and maximum heap were then raised together from 1 GB to 4 GB.</p>
+          <pre><code>-Xms1g  →  -Xms4g
+-Xmx1g  →  -Xmx4g</code></pre>
+          <p>Four gigabytes was chosen instead of allocating half of system memory because the monitoring manager, dashboard, shipper, and operating-system page cache shared the same host. The change required one planned service restart.</p>
+        </section>
+
+        <section>
+          <p class="eyebrow">Validation</p>
+          <h2>Verify the service and the workflow that failed</h2>
+          <div class="result-list">
+            <div class="result"><span class="result-mark">✓</span><div><strong>Heap recognized:</strong> the restarted JVM reported a 4096 MB maximum and approximately 27 percent usage at rest.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div><strong>Cluster recovered:</strong> the single-node cluster returned to its expected yellow steady state with active primary shards.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div><strong>Ingestion resumed:</strong> the TCP log session re-established without manual intervention.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div><strong>Original failure cleared:</strong> all seven daily slices of the previously failing query completed successfully.</div></div>
+          </div>
+          <p>One operational lesson also came out of the restart: a short red period was normal shard recovery, not proof of a failed change. Documenting the expected recovery state prevented another unnecessary rollback.</p>
+        </section>
+
+        <section>
+          <p class="eyebrow">Residual risk</p>
+          <h2>The immediate failure was fixed, not hidden</h2>
+          <div class="callout warning"><p>The 540-shard count remains higher than appropriate for this small deployment. The heap increase restored reliable operation and bought safe headroom, but index lifecycle and rollover policy remain the structural follow-up.</p></div>
+          <p>This distinction matters in support work: restoring the customer-impacting workflow does not erase the underlying capacity debt. Both the verified fix and the remaining work are documented.</p>
+        </section>
+      </article>
+
+      <aside class="article-aside" aria-label="Case summary">
+        <h2>What this demonstrates</h2>
+        <ul>
+          <li>Linux service troubleshooting</li>
+          <li>JVM and OpenSearch capacity analysis</li>
+          <li>Reading raw errors behind client symptoms</li>
+          <li>Controlled configuration changes</li>
+          <li>Post-restart functional validation</li>
+          <li>Clear residual-risk documentation</li>
+        </ul>
+        <a class="back" href="index.html#cases">← All support cases</a>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="site-footer"><div class="footer-inner"><p>Sanitized from an authorized environment. Private addresses and identifying infrastructure details are omitted.</p><p>© 2026 Brian Rollinson</p></div></footer>
+</body>
+</html>
+

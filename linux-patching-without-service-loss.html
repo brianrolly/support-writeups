@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A Linux systems support case study: patching and rebooting two hosts while preserving services, telemetry, and a tested rollback path.">
+  <title>Patching Linux Without Breaking the Stack | Support Writeups</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">SW</span><span>Support Writeups</span></a>
+      <div class="nav-links"><a href="index.html#cases">Case studies</a><a href="index.html#method">Method</a><a href="mailto:brianrolly@icloud.com">Contact</a></div>
+    </nav>
+  </header>
+
+  <main id="main" class="page">
+    <header class="article-hero">
+      <p class="eyebrow">Case 03 · Linux Systems Support</p>
+      <h1>Patching Linux Without Breaking the Stack</h1>
+      <p class="lede">Two hosts were behind on kernels and security packages. The change had to preserve version-sensitive monitoring components, custom configuration, service availability, and the end-to-end telemetry path.</p>
+      <div class="meta-row">
+        <span class="status resolved">Validated on two hosts</span>
+        <span class="tag">Ubuntu</span><span class="tag">APT</span><span class="tag">Proxmox</span><span class="tag">NGINX</span>
+      </div>
+    </header>
+
+    <div class="article-layout">
+      <article class="article">
+        <section>
+          <p class="eyebrow">Risk</p>
+          <h2>A clean reboot would not be enough</h2>
+          <p>The hosts included a central monitoring server and a Linux endpoint with audit rules, a web service, and an active agent. Routine operating-system patching could unintentionally upgrade version-sensitive platform packages or overwrite custom configuration.</p>
+          <p>The acceptance condition was therefore larger than “the machine came back.” Services, listeners, agents, audit rules, web response, and the complete telemetry path all had to remain functional.</p>
+        </section>
+
+        <section>
+          <p class="eyebrow">Preparation</p>
+          <h2>Capture a rollback and a meaningful before-state</h2>
+          <ul>
+            <li>Create snapshot-mode VM backups before maintenance.</li>
+            <li>Record the running kernel, installed kernels, and reboot-required state.</li>
+            <li>Record the active services and network listeners appropriate to each host.</li>
+            <li>Confirm the endpoint’s audit-rule count and web-service response.</li>
+            <li>Hold platform packages that require an ordered, separate upgrade window.</li>
+          </ul>
+          <pre><code>manager host: services + listeners + established log session
+endpoint:     agent + auditd + nginx + audit rule count
+both hosts:   kernel + pending reboot + package holds</code></pre>
+        </section>
+
+        <section>
+          <p class="eyebrow">Change control</p>
+          <h2>Simulate the upgrade before applying it</h2>
+          <p>The package manager’s full-upgrade plan was reviewed for removals, version-sensitive packages, and new dependencies. This caught whether the holds were working before the live transaction.</p>
+          <p>The upgrade preserved existing configuration files where packages supplied new defaults. Each host was rebooted only after its package transaction completed and the pre-state was recorded.</p>
+          <div class="callout"><p><strong>Operational guardrail:</strong> after the SSH session closed for reboot, post-change verification started by checking the hostname. That prevented healthy results from being collected accidentally from the administrator’s local machine.</p></div>
+        </section>
+
+        <section>
+          <p class="eyebrow">Validation</p>
+          <h2>Verify the components, then prove the workflow</h2>
+          <div class="result-list">
+            <div class="result"><span class="result-mark">✓</span><div>Both systems booted the intended current kernel, and the reboot-required flag cleared.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div>Monitoring, indexing, dashboard, shipping, and endpoint services returned active.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div>Network listeners and the established remote logging session returned.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div>The endpoint retained 26 audit rules, and NGINX returned the expected local HTTP response.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div>A fresh functional test produced the expected security event at the destination.</div></div>
+          </div>
+          <p>Both hosts moved from stale kernels to current packages with no observed service loss. The monitoring server’s Lynis hardening index progressed from 55 to 68 across the broader hardening and patching work.</p>
+        </section>
+
+        <section>
+          <p class="eyebrow">Scope boundary</p>
+          <h2>Routine OS maintenance stayed separate from platform upgrades</h2>
+          <p>Central monitoring components were intentionally held. Their required upgrade order and compatibility constraints made them inappropriate for a routine full upgrade. They remained a separate maintenance task with its own backup, validation, and recovery plan.</p>
+        </section>
+      </article>
+
+      <aside class="article-aside" aria-label="Case summary">
+        <h2>What this demonstrates</h2>
+        <ul>
+          <li>Linux patch and reboot ownership</li>
+          <li>Package simulation and dependency holds</li>
+          <li>Proxmox snapshot backups</li>
+          <li>systemd, listeners, and process checks</li>
+          <li>NGINX and auditd validation</li>
+          <li>Runbook-driven change management</li>
+        </ul>
+        <a class="back" href="index.html#cases">← All support cases</a>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="site-footer"><div class="footer-inner"><p>Sanitized from an authorized environment. Private addresses and identifying infrastructure details are omitted.</p><p>© 2026 Brian Rollinson</p></div></footer>
+</body>
+</html>
+

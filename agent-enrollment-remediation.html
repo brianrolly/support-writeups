@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A security support case study: closing an unauthenticated agent-enrollment path, cleaning up the resulting records, and verifying the fix.">
+  <title>Closing an Unauthenticated Enrollment Path | Support Writeups</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">SW</span><span>Support Writeups</span></a>
+      <div class="nav-links"><a href="index.html#cases">Case studies</a><a href="index.html#method">Method</a><a href="mailto:brianrolly@icloud.com">Contact</a></div>
+    </nav>
+  </header>
+
+  <main id="main" class="page">
+    <header class="article-hero">
+      <p class="eyebrow">Case 04 · Security Support and Access Control</p>
+      <h1>Closing an Unauthenticated Enrollment Path</h1>
+      <p class="lede">An authorized validation showed that a reachable host could obtain a trusted monitoring identity without presenting a credential. The root setting was corrected, the unauthorized identity was removed, and the same request was rejected on retest.</p>
+      <div class="meta-row">
+        <span class="status partial">Primary exposure fixed</span>
+        <span class="tag">Wazuh</span><span class="tag">TLS</span><span class="tag">Access control</span><span class="tag">Incident cleanup</span>
+      </div>
+    </header>
+
+    <div class="article-layout">
+      <article class="article">
+        <section>
+          <p class="eyebrow">Finding</p>
+          <h2>The service issued trust before proving identity</h2>
+          <p>The monitoring platform’s enrollment service was reachable and configured with password enforcement disabled. During an authorized test, a raw TLS enrollment request returned a valid agent key without a challenge.</p>
+          <p>That key allowed the test host to become an active, trusted telemetry source. It then generated a fabricated authentication event that appeared in the central alert stream as if it came from a monitored system.</p>
+          <div class="fact-grid">
+            <div class="fact"><span>Enrollment</span><strong>No password required</strong></div>
+            <div class="fact"><span>Result</span><strong>Trusted agent identity issued</strong></div>
+            <div class="fact"><span>Observed impact</span><strong>Forged event indexed</strong></div>
+          </div>
+        </section>
+
+        <section>
+          <p class="eyebrow">Containment and evidence</p>
+          <h2>Stop the source without losing the record of what happened</h2>
+          <p>The unauthorized test agent was stopped and removed. The manager-side identities were deleted, and the injected records were removed from the active index after a sanitized evidence export was retained.</p>
+          <p>The service and manager logs were added to central collection so later enrollment, configuration posture, and removal activity could be investigated from the monitoring platform itself.</p>
+          <div class="callout"><p><strong>Key distinction:</strong> removing the agent stopped additional injection, but it did not correct the configuration that issued the identity. Containment and remediation were separate tasks.</p></div>
+        </section>
+
+        <section>
+          <p class="eyebrow">Root-cause remediation</p>
+          <h2>Require a shared secret for enrollment</h2>
+          <p>Password-protected enrollment was enabled, and the required secret file was configured on the manager. The enrollment port continued listening because legitimate agents still needed it, but possession of network access alone was no longer sufficient.</p>
+          <pre><code>before: enrollment reachable + password check disabled
+after:  enrollment reachable + shared-secret validation required</code></pre>
+        </section>
+
+        <section>
+          <p class="eyebrow">Validation</p>
+          <h2>Repeat the same request against the corrected system</h2>
+          <p>The exact unauthenticated enrollment method used during the validation was run again after the configuration change.</p>
+          <div class="result-list">
+            <div class="result"><span class="result-mark">✓</span><div>The manager rejected the request with an invalid-password error.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div>The unauthorized test agents were no longer present in the manager inventory.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div>Detection for enrollment and repeated API authentication attempts was re-tested against live events.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div>An automated temporary network block was confirmed for repeated API authentication failures.</div></div>
+          </div>
+        </section>
+
+        <section>
+          <p class="eyebrow">Remaining work</p>
+          <h2>The primary flaw was closed, but the management plane still needed hardening</h2>
+          <div class="callout warning"><p>Password-gated enrollment was verified. Related follow-ups remained for API network exposure, host firewall policy, and visibility into privileged bulk deletion. This case is therefore labeled “primary exposure fixed,” not fully closed.</p></div>
+        </section>
+      </article>
+
+      <aside class="article-aside" aria-label="Case summary">
+        <h2>What this demonstrates</h2>
+        <ul>
+          <li>Configuration-root-cause analysis</li>
+          <li>Authentication and enrollment flows</li>
+          <li>Containment versus remediation</li>
+          <li>Log and evidence preservation</li>
+          <li>Cleanup of unauthorized identities</li>
+          <li>Repeatable verification testing</li>
+        </ul>
+        <a class="back" href="index.html#cases">← All support cases</a>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="site-footer"><div class="footer-inner"><p>Sanitized from an authorized security validation. No third-party systems were tested.</p><p>© 2026 Brian Rollinson</p></div></footer>
+</body>
+</html>
+

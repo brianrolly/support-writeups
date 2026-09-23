@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An infrastructure escalation case study: safely diagnosing a degraded Proxmox ZFS mirror and producing a gated recovery plan.">
+  <title>Diagnosing a Degraded ZFS Mirror Safely | Support Writeups</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">SW</span><span>Support Writeups</span></a>
+      <div class="nav-links"><a href="index.html#cases">Case studies</a><a href="index.html#method">Method</a><a href="mailto:brianrolly@icloud.com">Contact</a></div>
+    </nav>
+  </header>
+
+  <main id="main" class="page">
+    <header class="article-hero">
+      <p class="eyebrow">Case 05 · Infrastructure Escalation</p>
+      <h1>Diagnosing a Degraded ZFS Mirror Safely</h1>
+      <p class="lede">A virtualization host was still running, but one member of its NVMe mirror had failed at the controller level. The priority was to identify the exact device, verify the surviving path, expose the recovery risk, and avoid turning degraded redundancy into an outage.</p>
+      <div class="meta-row">
+        <span class="status open">Open escalation</span>
+        <span class="tag">Proxmox</span><span class="tag">ZFS</span><span class="tag">NVMe</span><span class="tag">Recovery planning</span>
+      </div>
+    </header>
+
+    <div class="article-layout">
+      <article class="article">
+        <section>
+          <div class="callout open"><p><strong>Status:</strong> this case documents completed diagnosis and escalation, not a completed disk replacement. Physical maintenance and pool modification required separate authorization.</p></div>
+          <p class="eyebrow">Situation</p>
+          <h2>Healthy applications were masking a critical redundancy failure</h2>
+          <p>The virtualization host remained online and its pool reported no known data errors, but the ZFS mirror was degraded. One NVMe namespace reported zero bytes, and the system was operating entirely from the surviving member.</p>
+          <p>A quick pool clear or online command would have treated the status rather than the hardware failure. All initial work was therefore read-only.</p>
+        </section>
+
+        <section>
+          <p class="eyebrow">Evidence</p>
+          <h2>Trace the failure from the kernel to the physical slot</h2>
+          <p>Kernel logs showed repeated write-command timeouts, an attempted controller reset, and a reset failure. Linux then disabled the controller, and ZFS removed the corresponding mirror member after I/O errors.</p>
+          <div class="fact-grid">
+            <div class="fact"><span>Pool</span><strong>Degraded mirror</strong></div>
+            <div class="fact"><span>Failed member</span><strong>Controller present, block device unusable</strong></div>
+            <div class="fact"><span>Surviving member</span><strong>SMART passed, zero media errors</strong></div>
+          </div>
+          <p>Stable device identifiers, PCI addresses, serial numbers, motherboard documentation, and EFI partition state were correlated to map the failed logical member to the exact physical connector. The host was also confirmed to be booting from the healthy disk’s EFI System Partition.</p>
+        </section>
+
+        <section>
+          <p class="eyebrow">Risk discovery</p>
+          <h2>The configured backups shared the failed storage domain</h2>
+          <p>The only scheduled archives were stored on local storage backed by the same degraded pool. That meant they were convenient restore points, but not independent recovery copies.</p>
+          <p>A guest named for backups also resided on the same pool. Without proof of external replication, its presence could not be counted as off-host protection.</p>
+          <div class="callout warning"><p><strong>Recovery gate:</strong> verify and copy critical data to an independent destination before powering down, reseating hardware, or modifying the pool.</p></div>
+        </section>
+
+        <section>
+          <p class="eyebrow">Escalation plan</p>
+          <h2>Make the physical action unambiguous</h2>
+          <p>The recovery plan identified the failed slot and serial number, distinguished it from the healthy member, and required console access, a maintenance window, and a verified replacement device before intervention.</p>
+          <ol>
+            <li>Verify off-host backups and checksums.</li>
+            <li>Export virtualization configuration and guest definitions.</li>
+            <li>Power down cleanly for physical service.</li>
+            <li>Identify the replacement by model, serial, capacity, and stable device path.</li>
+            <li>Replicate the healthy partition layout to the confirmed replacement.</li>
+            <li>Replace the missing ZFS member and initialize the replacement EFI partition.</li>
+            <li>Wait for resilver completion and require the pool to return online.</li>
+            <li>Scrub the pool, verify zero data errors, and confirm both boot partitions.</li>
+          </ol>
+        </section>
+
+        <section>
+          <p class="eyebrow">Outcome</p>
+          <h2>A safe diagnosis and handoff, not an invented resolution</h2>
+          <p>The exact hardware failure, surviving boot path, current integrity state, backup weakness, and recovery sequence were documented. No disk was detached, no partition table was copied, and no pool replacement command was run without the required authority.</p>
+          <p>For escalation support, knowing when not to make a technically possible change is part of owning the incident.</p>
+        </section>
+      </article>
+
+      <aside class="article-aside" aria-label="Case summary">
+        <h2>What this demonstrates</h2>
+        <ul>
+          <li>Proxmox and ZFS investigation</li>
+          <li>Kernel and NVMe failure analysis</li>
+          <li>SMART and boot-path verification</li>
+          <li>Backup-domain risk assessment</li>
+          <li>Hardware-specific escalation</li>
+          <li>Careful authorization boundaries</li>
+        </ul>
+        <a class="back" href="index.html#cases">← All support cases</a>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="site-footer"><div class="footer-inner"><p>Sanitized from an authorized infrastructure incident. The replacement remained pending at the time of documentation.</p><p>© 2026 Brian Rollinson</p></div></footer>
+</body>
+</html>
+

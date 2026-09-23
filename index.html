@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Sanitized technical case studies in Linux, application support, infrastructure troubleshooting, and verified remediation by Brian Rollinson.">
+  <title>Support Writeups | Brian Rollinson</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="index.html" aria-current="page">
+        <span class="brand-mark" aria-hidden="true">SW</span>
+        <span>Support Writeups</span>
+      </a>
+      <div class="nav-links">
+        <a href="#cases">Case studies</a>
+        <a href="#method">Method</a>
+        <a href="mailto:brianrolly@icloud.com">Contact</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main" class="page">
+    <section class="hero" aria-labelledby="hero-title">
+      <div>
+        <p class="eyebrow">Brian Rollinson · Technical Portfolio</p>
+        <h1 id="hero-title">Support work, with the evidence left in.</h1>
+        <p class="lede">Case studies in Linux, application support, infrastructure troubleshooting, change management, and verified remediation. Each writeup shows the signal, the decision, the change, and the test that proved the result.</p>
+      </div>
+      <aside class="hero-note" aria-label="Portfolio scope">
+        <strong>Sanitized by design</strong>
+        <p>These cases come from systems support and authorized security-validation environments. Customer names, private addresses, credentials, and identifying infrastructure details are omitted or replaced.</p>
+      </aside>
+    </section>
+
+    <section id="cases" class="section" aria-labelledby="cases-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Case studies</p>
+          <h2 id="cases-title">Problems worked through to an outcome</h2>
+        </div>
+        <p>Resolved cases are separated from partial remediations and open escalations. The status describes what was actually completed.</p>
+      </div>
+
+      <div class="case-grid">
+        <a class="case-card" href="indexer-capacity-recovery.html">
+          <div class="card-top">
+            <span class="case-number">CASE 01</span>
+            <span class="status resolved">Fixed and verified</span>
+          </div>
+          <h3>Recovering a Capacity-Limited Search Platform</h3>
+          <p>A week-long query failed with a misleading client-side symptom. The investigation found a 1 GB JVM heap on a 12 GB host, corrected it, and verified the full query and ingestion path after restart.</p>
+          <div class="tag-list" aria-label="Technologies">
+            <span class="tag">Linux</span>
+            <span class="tag">OpenSearch</span>
+            <span class="tag">JVM</span>
+            <span class="tag">systemd</span>
+          </div>
+          <span class="read-more">Read case study →</span>
+        </a>
+
+        <a class="case-card" href="reliable-log-delivery.html">
+          <div class="card-top">
+            <span class="case-number">CASE 02</span>
+            <span class="status resolved">Cutover validated</span>
+          </div>
+          <h3>Restoring Reliable Log Delivery</h3>
+          <p>After a controlled event was lost over UDP, a parallel TCP path was introduced with backups, rollback controls, source restrictions, and end-to-end acceptance testing before cutover.</p>
+          <div class="tag-list" aria-label="Technologies">
+            <span class="tag">TCP/IP</span>
+            <span class="tag">syslog-ng</span>
+            <span class="tag">Wazuh</span>
+            <span class="tag">OPNsense</span>
+          </div>
+          <span class="read-more">Read case study →</span>
+        </a>
+
+        <a class="case-card" href="linux-patching-without-service-loss.html">
+          <div class="card-top">
+            <span class="case-number">CASE 03</span>
+            <span class="status resolved">Validated on two hosts</span>
+          </div>
+          <h3>Patching Linux Without Breaking the Stack</h3>
+          <p>Two systems moved from stale kernels to current packages using backups, dependency holds, upgrade simulation, controlled reboots, service checks, and a functional test of the monitoring path.</p>
+          <div class="tag-list" aria-label="Technologies">
+            <span class="tag">Ubuntu</span>
+            <span class="tag">APT</span>
+            <span class="tag">Proxmox</span>
+            <span class="tag">NGINX</span>
+          </div>
+          <span class="read-more">Read case study →</span>
+        </a>
+
+        <a class="case-card" href="agent-enrollment-remediation.html">
+          <div class="card-top">
+            <span class="case-number">CASE 04</span>
+            <span class="status partial">Primary exposure fixed</span>
+          </div>
+          <h3>Closing an Unauthenticated Enrollment Path</h3>
+          <p>An adjacent test host obtained a trusted monitoring identity without a credential. The root setting was corrected, the unauthorized identity was removed, and the identical request was rejected on retest.</p>
+          <div class="tag-list" aria-label="Technologies">
+            <span class="tag">Wazuh</span>
+            <span class="tag">TLS</span>
+            <span class="tag">Access control</span>
+            <span class="tag">Incident cleanup</span>
+          </div>
+          <span class="read-more">Read case study →</span>
+        </a>
+
+        <a class="case-card" href="zfs-mirror-incident-triage.html">
+          <div class="card-top">
+            <span class="case-number">CASE 05</span>
+            <span class="status open">Open escalation</span>
+          </div>
+          <h3>Diagnosing a Degraded ZFS Mirror Safely</h3>
+          <p>A storage mirror was degraded by a nonfunctional NVMe controller. Read-only evidence isolated the failed member, exposed a backup gap, and produced a gated recovery plan without risking the surviving disk.</p>
+          <div class="tag-list" aria-label="Technologies">
+            <span class="tag">Proxmox</span>
+            <span class="tag">ZFS</span>
+            <span class="tag">NVMe</span>
+            <span class="tag">Recovery planning</span>
+          </div>
+          <span class="read-more">Read case study →</span>
+        </a>
+      </div>
+    </section>
+
+    <section id="method" class="section" aria-labelledby="method-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Working method</p>
+          <h2 id="method-title">A repeatable support cycle</h2>
+        </div>
+        <p>The same structure appears across the cases because it keeps technical work explainable, reversible, and testable.</p>
+      </div>
+      <div class="method-grid">
+        <div class="method-step"><span>01 · Establish</span><h3>Capture the symptom</h3><p>Record the failure, affected path, scope, timestamps, and known-good state before changing anything.</p></div>
+        <div class="method-step"><span>02 · Isolate</span><h3>Follow the evidence</h3><p>Use service state, logs, process data, network observations, and configuration to separate cause from correlation.</p></div>
+        <div class="method-step"><span>03 · Change</span><h3>Keep rollback intact</h3><p>Back up, validate candidates, stage risky changes, and preserve a clear route back to the previous state.</p></div>
+        <div class="method-step"><span>04 · Prove</span><h3>Test the real workflow</h3><p>Verify services and metrics, then repeat the operation that originally failed instead of stopping at “service active.”</p></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="contact-title">
+      <div class="contact-panel">
+        <div>
+          <h2 id="contact-title">Brian Rollinson</h2>
+          <p>Linux and application support, infrastructure troubleshooting, security-minded operations, and clear technical documentation.</p>
+        </div>
+        <a class="button" href="mailto:brianrolly@icloud.com">brianrolly@icloud.com</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p>All activity described here was authorized. Identifiers are sanitized, and open work is labeled as open.</p>
+      <p>© 2026 Brian Rollinson</p>
+    </div>
+  </footer>
+</body>
+</html>
+
