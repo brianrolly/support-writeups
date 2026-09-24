@@ -191,6 +191,14 @@ local-zfs  zfspool  active
           <p>The exact hardware failure, surviving boot path, current integrity state, backup weakness, and recovery sequence were documented. No disk was detached, no partition table was copied, and no pool replacement command was run without the required authority.</p>
           <p>For escalation support, knowing when not to make a technically possible change is part of owning the incident.</p>
         </section>
+
+        <section>
+          <p class="eyebrow">Remediation recommendation</p>
+          <h2>Restore storage and boot redundancy through a controlled infrastructure change</h2>
+          <p>The recommended remediation is an infrastructure-owner maintenance operation: first establish a checksum-verified off-host recovery copy, then replace the failed <code>M2_2</code> NVMe device during an approved maintenance window with console access and a tested rollback path.</p>
+          <p>After confirming the replacement by model, serial, capacity, and stable device path, the operator should replicate the healthy partition layout, assign new GPT identifiers, replace the removed ZFS member, rebuild the replacement EFI System Partition, and monitor the resilver to completion. Closure requires <code>rpool</code> to return to <code>ONLINE</code>, a clean scrub with zero data errors, both EFI partitions registered and readable, and representative guest services validated after the change.</p>
+          <div class="callout warning"><p><strong>Why remediation was not performed:</strong> the affected pool was a shared infrastructure dependency supporting multiple guest systems and business-facing endpoints, including hosted websites, web applications, and supporting services outside the authorized engagement boundary. A host shutdown, partition-table operation, ZFS replacement, resilver, or boot-partition change could affect the availability and recovery posture of every attached workload. Proceeding without verified service ownership, approved downtime, independent backups, console access, and stakeholder authorization would have expanded the operational blast radius beyond scope. The correct support action was therefore to preserve service, document the evidence, define the recovery gates, and hand the change to the accountable infrastructure owner.</p></div>
+        </section>
       </article>
 
       <aside class="article-aside" aria-label="Case summary">
@@ -203,6 +211,7 @@ local-zfs  zfspool  active
           <li>SMART and boot-path verification</li>
           <li>Backup-domain risk assessment</li>
           <li>Hardware-specific escalation</li>
+          <li>Blast-radius and change-risk analysis</li>
           <li>Careful authorization boundaries</li>
         </ul>
         <a class="back" href="index.html#cases">← All support cases</a>
