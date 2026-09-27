@@ -86,6 +86,17 @@ counters: processed = written, dropped = 0, queued = 0</code></pre>
             <div class="result"><span class="result-mark">✓</span><div>The TCP destination reported zero dropped and zero queued messages.</div></div>
             <div class="result"><span class="result-mark">✓</span><div>Unrelated firewall programs continued sending over the retained UDP path.</div></div>
           </div>
+          <p>The condensed acceptance record compares an earlier missing event with a separate, fresh post-cutover test. Addresses and event identifiers are omitted.</p>
+          <pre><code>Earlier control event, before cutover
+  firewall EVE log:       present
+  central archive match: absent
+
+Fresh FIN test, 2026-08-02 07:16 UTC
+  firewall EVE events:    1
+  central archive match:  1
+  classification alerts: 1
+  TCP cumulative counters: 6 processed / 6 written
+                           0 dropped / 0 queued</code></pre>
         </section>
 
         <section>

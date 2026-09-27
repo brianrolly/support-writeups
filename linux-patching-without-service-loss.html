@@ -70,6 +70,12 @@ both hosts:   kernel + pending reboot + package holds</code></pre>
             <div class="result"><span class="result-mark">✓</span><div>The endpoint retained 26 audit rules, and NGINX returned the expected local HTTP response.</div></div>
             <div class="result"><span class="result-mark">✓</span><div>A fresh functional test produced the expected security event at the destination.</div></div>
           </div>
+          <p>The August 8 maintenance record and follow-up handoff support this condensed verification summary; it is not a verbatim terminal transcript.</p>
+          <pre><code>Before maintenance: both hosts running stale kernels
+After planned reboot: both on kernel 6.8.0-138
+                      reboot-required flag clear
+                      endpoint audit rules retained: 26
+                      fresh detection confirmed at destination</code></pre>
           <p>Both hosts moved from stale kernels to current packages. The planned reboots interrupted service, but post-maintenance checks found no unexpected service failures. The monitoring server’s Lynis hardening index progressed from 55 to 68 across the broader hardening and patching work.</p>
         </section>
 
