@@ -13,7 +13,7 @@
   <header class="site-header">
     <nav class="nav" aria-label="Primary navigation">
       <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">SW</span><span>Support Writeups</span></a>
-      <div class="nav-links"><a href="index.html#cases">Case studies</a><a href="index.html#method">Method</a><a href="mailto:brianrolly@icloud.com">Contact</a></div>
+      <div class="nav-links"><a href="index.html#cases">Case studies</a><a href="index.html#method">Method</a><a href="https://www.linkedin.com/in/brian-rollinson-2079581b9/">LinkedIn</a></div>
     </nav>
   </header>
 
@@ -130,13 +130,13 @@ root@proxmox-lab:~# proxmox-boot-tool status
 System currently booted with uefi
 3C36-9255 is configured with: uefi (current kernels present)
 mount of /dev/disk/by-uuid/3C3E-4FC4 failed - skipping</code></pre>
-          <p>This did not prove the surviving SSD could never fail. It established the narrower facts required for a safe handoff: the readable member had no recorded media errors, the host was currently bootable from its EFI partition, and the failed member’s EFI partition was also unreadable.</p>
+          <p>This did not prove the surviving SSD could never fail. It established the narrower facts required for a safe handoff: the readable member had no recorded media errors, the host had booted in UEFI mode with current kernels registered on the surviving EFI partition, and the failed member’s EFI partition was unreadable.</p>
         </section>
 
         <section>
           <p class="eyebrow">Risk discovery</p>
           <h2>The configured backups shared the failed storage domain</h2>
-          <p>The only scheduled archives were stored on local storage backed by the same degraded pool. That meant they were convenient restore points, but not independent recovery copies.</p>
+          <p>The scheduled archives found during this review were stored on local storage backed by the same degraded pool. They were convenient restore points, but not independent recovery copies.</p>
           <p>A guest named for backups also resided on the same pool. Without proof of external replication, its presence could not be counted as off-host protection.</p>
           <pre><code>root@proxmox-lab:~# pvesh get /cluster/backup --output-format json-pretty
 [

@@ -13,7 +13,7 @@
   <header class="site-header">
     <nav class="nav" aria-label="Primary navigation">
       <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">SW</span><span>Support Writeups</span></a>
-      <div class="nav-links"><a href="index.html#cases">Case studies</a><a href="index.html#method">Method</a><a href="mailto:brianrolly@icloud.com">Contact</a></div>
+      <div class="nav-links"><a href="index.html#cases">Case studies</a><a href="index.html#method">Method</a><a href="https://www.linkedin.com/in/brian-rollinson-2079581b9/">LinkedIn</a></div>
     </nav>
   </header>
 
@@ -49,7 +49,7 @@ configured parent limit was approximately 973 MB</code></pre>
             <div class="fact"><span>Shard count</span><strong>540</strong></div>
           </div>
           <p>The breaker report showed almost no request or field-data allocation. The query itself was not consuming the missing memory. The node was sitting at roughly 83 percent heap usage before it received the request.</p>
-          <p>Old-generation garbage collection had not run, which ruled against a thrashing JVM. The system was not failing unpredictably; it had simply been configured with too little heap for its steady shard overhead.</p>
+          <p>Old-generation garbage collection had not run in the observed period, providing no evidence of repeated full-collection thrashing. The breaker and heap measurements pointed to too little configured heap for the steady shard overhead.</p>
           <div class="callout"><p><strong>Root cause:</strong> a 1 GB JVM heap had been left on a 12 GB host. Standing per-shard overhead consumed most of it, leaving too little room for multi-day aggregations.</p></div>
         </section>
 
@@ -77,8 +77,9 @@ configured parent limit was approximately 973 MB</code></pre>
         <section>
           <p class="eyebrow">Residual risk</p>
           <h2>The immediate failure was fixed, not hidden</h2>
-          <div class="callout warning"><p>The 540-shard count remains higher than appropriate for this small deployment. The heap increase restored reliable operation and bought safe headroom, but index lifecycle and rollover policy remain the structural follow-up.</p></div>
+          <div class="callout warning"><p>The 540-shard count remains higher than appropriate for this small deployment. The heap increase restored the failed query, but follow-up work must right-size new indices and reduce existing shard count through retention, deletion, or consolidation. A lifecycle policy can automate parts of that work; rollover alone creates another index.</p></div>
           <p>This distinction matters in support work: restoring the customer-impacting workflow does not erase the underlying capacity debt. Both the verified fix and the remaining work are documented.</p>
+          <p>For the query, breaker response, and recovery output, see the <a href="https://brianrolly.github.io/soc-lab-writeups/indexer-heap-undersizing.html">companion technical writeup</a>.</p>
         </section>
       </article>
 

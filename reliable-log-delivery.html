@@ -13,7 +13,7 @@
   <header class="site-header">
     <nav class="nav" aria-label="Primary navigation">
       <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">SW</span><span>Support Writeups</span></a>
-      <div class="nav-links"><a href="index.html#cases">Case studies</a><a href="index.html#method">Method</a><a href="mailto:brianrolly@icloud.com">Contact</a></div>
+      <div class="nav-links"><a href="index.html#cases">Case studies</a><a href="index.html#method">Method</a><a href="https://www.linkedin.com/in/brian-rollinson-2079581b9/">LinkedIn</a></div>
     </nav>
   </header>
 
@@ -21,7 +21,7 @@
     <header class="article-hero">
       <p class="eyebrow">Case 02 · Networking and Platform Support</p>
       <h1>Restoring Reliable Log Delivery</h1>
-      <p class="lede">A controlled event existed on the firewall but never reached the monitoring platform. A parallel TCP path was introduced, tested, and cut over without interrupting the legacy traffic that still depended on UDP.</p>
+      <p class="lede">A controlled event appeared on the firewall but not in the monitoring archive. A parallel TCP path was introduced, tested, and cut over while unrelated traffic continued on UDP.</p>
       <div class="meta-row">
         <span class="status resolved">Cutover validated</span>
         <span class="tag">TCP/IP</span><span class="tag">syslog-ng</span><span class="tag">Wazuh</span><span class="tag">OPNsense</span>
@@ -91,7 +91,7 @@ counters: processed = written, dropped = 0, queued = 0</code></pre>
         <section>
           <p class="eyebrow">Boundary</p>
           <h2>Reliable delivery is not encrypted delivery</h2>
-          <div class="callout warning"><p>Direct TCP improved acknowledgement and eliminated the observed duplicate after cutover, but it was not described as encrypted or durably queued. Those would require additional transport and architecture work.</p></div>
+          <div class="callout warning"><p>The missing event showed a delivery gap, but did not by itself prove where the UDP path lost it. Direct TCP added transport acknowledgement and eliminated the observed duplicate after cutover; this configuration was not encrypted or durably queued. Those protections require additional transport and architecture work.</p></div>
         </section>
       </article>
 

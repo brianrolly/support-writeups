@@ -56,7 +56,7 @@ a:hover {
 }
 
 a:focus-visible {
-  outline: 3px solid rgba(21, 89, 168, 0.35);
+  outline: 3px solid var(--blue);
   outline-offset: 4px;
   border-radius: 4px;
 }
@@ -589,7 +589,7 @@ pre code {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  color: #fff;
+  color: #10271d;
   background: var(--green);
   font-size: 0.8rem;
   font-weight: 900;
