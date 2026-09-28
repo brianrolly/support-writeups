@@ -57,10 +57,22 @@
           <h2>Validate configuration before activation</h2>
           <p>The receiver was configured with a TCP listener restricted to the firewall’s source address. The firewall’s generated syslog configuration was limited to the event program, the intended facility and severity, and the new destination port.</p>
           <p>A missing XML validation utility on the server did not justify skipping the check. The candidate configuration was wrapped and validated with a trusted XML parser from the administrative workstation before installation. The active service’s own test mode was then used before restart.</p>
-          <pre><code>receiver: TCP listener active and source restricted
-sender:   generated configuration syntax valid
-session:  TCP connection established
-counters: processed = written, dropped = 0, queued = 0</code></pre>
+          <p>Selected, sanitized excerpts from the dated change record show the receiver input and the checks used before activation. The commands are preserved from the record; the service states below are recorded observations, not a full terminal transcript.</p>
+          <pre><code>&lt;remote&gt;
+  &lt;connection&gt;syslog&lt;/connection&gt;
+  &lt;port&gt;5514&lt;/port&gt;
+  &lt;protocol&gt;tcp&lt;/protocol&gt;
+  &lt;allowed-ips&gt;[firewall source redacted]&lt;/allowed-ips&gt;
+&lt;/remote&gt;</code></pre>
+          <pre><code>Receiver checks:
+/var/ossec/bin/wazuh-analysisd -t
+systemctl is-active wazuh-manager
+ss -lunpt | grep -E '(^Netid|:514[[:space:]]|:5514[[:space:]])'
+
+Firewall checks:
+syslog-ng --syntax-only -f /usr/local/etc/syslog-ng.conf
+configctl syslog status</code></pre>
+          <p>At 06:42 UTC, the recorded receiver state was <code>wazuh-manager: active</code>, with UDP/514 retained and TCP/5514 listening. The firewall’s generated configuration passed the syntax check, syslog-ng was running, and a TCP session to port 5514 was established.</p>
           <p>An early marker also exposed a quoting problem that stripped JSON quotation marks. That message still proved transport delivery, but it did not count as structured-data acceptance. A corrected JSON marker was sent and decoded before the change moved forward.</p>
         </section>
 
@@ -69,6 +81,10 @@ counters: processed = written, dropped = 0, queued = 0</code></pre>
           <h2>Remove duplication without breaking unrelated traffic</h2>
           <p>Running both transports produced two copies of each matching event. That was expected during the pilot and became the final cutover criterion.</p>
           <p>The firewall configuration was changed so the target JSON events used only TCP. Other firewall programs remained on UDP. The generated configuration was checked serially after regeneration, avoiding a stale read during template reload.</p>
+          <p>Selected output from the cutover helper, with destination identifiers omitted:</p>
+          <pre><code>BEFORE_PROGRAMS=audit,configd.py,filterlog,firewall,dpinger,suricata
+AFTER_PROGRAMS=audit,configd.py,filterlog,firewall,dpinger
+TCP_PROGRAMS=suricata</code></pre>
           <div class="fact-grid">
             <div class="fact"><span>Sensor events</span><strong>1</strong></div>
             <div class="fact"><span>Central archives</span><strong>1</strong></div>
@@ -86,17 +102,22 @@ counters: processed = written, dropped = 0, queued = 0</code></pre>
             <div class="result"><span class="result-mark">✓</span><div>The TCP destination reported zero dropped and zero queued messages.</div></div>
             <div class="result"><span class="result-mark">✓</span><div>Unrelated firewall programs continued sending over the retained UDP path.</div></div>
           </div>
-          <p>The condensed acceptance record compares an earlier missing event with a separate, fresh post-cutover test. Addresses and event identifiers are omitted.</p>
+          <p>The post-cutover acceptance used a fresh five-port FIN scan. The command below is from the change record; the monitored address is redacted.</p>
+          <pre><code>nmap -sF -Pn -n -e ens18 --send-ip --packet-trace \
+  --max-retries 0 --scan-delay 100ms --reason \
+  -p 65360-65364 [monitored address]</code></pre>
+          <p>The recorded observations compare the earlier missing event with this separate test. Counts refer to matching records in the stated test window; the TCP counters are cumulative.</p>
           <pre><code>Earlier control event, before cutover
-  firewall EVE log:       present
-  central archive match: absent
+  firewall EVE log:         present
+  central archive match:   absent
 
-Fresh FIN test, 2026-08-02 07:16 UTC
-  firewall EVE events:    1
-  central archive match:  1
-  classification alerts: 1
-  TCP cumulative counters: 6 processed / 6 written
-                           0 dropped / 0 queued</code></pre>
+Fresh FIN test, 2026-08-02 07:16:35–07:16:37 UTC
+  firewall EVE events:      1
+  central archive match:    1
+  Wazuh rule 100346 alerts: 1
+  trigger destination port: 65361
+  TCP counters:             6 processed / 6 written
+                            0 dropped / 0 queued</code></pre>
         </section>
 
         <section>
