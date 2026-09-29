@@ -13,7 +13,7 @@
   <header class="site-header">
     <nav class="nav" aria-label="Primary navigation">
       <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">SW</span><span>Support Writeups</span></a>
-      <div class="nav-links"><a href="index.html#cases">Case studies</a><a href="index.html#method">Method</a><a href="https://www.linkedin.com/in/brian-rollinson-2079581b9/">LinkedIn</a></div>
+      <div class="nav-links"><a href="index.html#cases">Case studies</a><a href="index.html#method">Method</a><a href="mailto:brianrolly@icloud.com">Contact</a></div>
     </nav>
   </header>
 
@@ -47,15 +47,29 @@
             <li>Confirm the endpoint’s audit-rule count and web-service response.</li>
             <li>Hold platform packages that require an ordered, separate upgrade window.</li>
           </ul>
-          <pre><code>manager host: services + listeners + established log session
-endpoint:     agent + auditd + nginx + audit rule count
-both hosts:   kernel + pending reboot + package holds</code></pre>
+          <p>The validated August 8 runbook records snapshot backups for both VMs (1 minute 39 seconds and 16 seconds) and the preflight commands below. VM identifiers are omitted. The backups provided a rollback for this maintenance change; they were stored locally, not as independent disaster-recovery copies.</p>
+          <pre><code>vzdump &lt;VMID&gt; --storage local --mode snapshot --compress zstd \
+  --notes-template "pre-reboot {{guestname}}"
+hostname
+uname -r
+test -e /var/run/reboot-required &amp;&amp; \
+  sort -u /var/run/reboot-required.pkgs</code></pre>
         </section>
 
         <section>
           <p class="eyebrow">Change control</p>
           <h2>Simulate the upgrade before applying it</h2>
           <p>The package manager’s full-upgrade plan was reviewed for removals, version-sensitive packages, and new dependencies. This caught whether the holds were working before the live transaction.</p>
+          <p>Selected commands from the validated runbook show the guardrail. They are procedure excerpts, not a saved terminal transcript:</p>
+          <pre><code># central monitoring host
+apt-mark hold wazuh-manager wazuh-indexer wazuh-dashboard filebeat
+apt-mark showhold
+apt-get -s full-upgrade
+
+# monitored endpoint
+apt-mark hold wazuh-agent
+apt-mark showhold
+apt-get -s full-upgrade</code></pre>
           <p>The upgrade preserved existing configuration files where packages supplied new defaults. Each host was rebooted only after its package transaction completed and the pre-state was recorded.</p>
           <div class="callout"><p><strong>Operational guardrail:</strong> after the SSH session closed for reboot, post-change verification started by checking the hostname. That prevented healthy results from being collected accidentally from the administrator’s local machine.</p></div>
         </section>
@@ -64,19 +78,32 @@ both hosts:   kernel + pending reboot + package holds</code></pre>
           <p class="eyebrow">Validation</p>
           <h2>Verify the components, then prove the workflow</h2>
           <div class="result-list">
-            <div class="result"><span class="result-mark">✓</span><div>Both systems booted the intended current kernel, and the reboot-required flag cleared.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div>The August 8 runbook records both hosts moving from stale running kernels to the then-current kernel; its post-reboot checks included the reboot-required flag.</div></div>
             <div class="result"><span class="result-mark">✓</span><div>Monitoring, indexing, dashboard, shipping, and endpoint services returned active.</div></div>
             <div class="result"><span class="result-mark">✓</span><div>Network listeners and the established remote logging session returned.</div></div>
             <div class="result"><span class="result-mark">✓</span><div>The endpoint retained 26 audit rules, and NGINX returned the expected local HTTP response.</div></div>
             <div class="result"><span class="result-mark">✓</span><div>A fresh functional test produced the expected security event at the destination.</div></div>
           </div>
-          <p>The August 8 maintenance record and follow-up handoff support this condensed verification summary; it is not a verbatim terminal transcript.</p>
-          <pre><code>Before maintenance: both hosts running stale kernels
-After planned reboot: both on kernel 6.8.0-138
-                      reboot-required flag clear
-                      endpoint audit rules retained: 26
-                      fresh detection confirmed at destination</code></pre>
-          <p>Both hosts moved from stale kernels to current packages. The planned reboots interrupted service, but post-maintenance checks found no unexpected service failures. The monitoring server’s Lynis hardening index progressed from 55 to 68 across the broader hardening and patching work.</p>
+          <p>The runbook’s end-to-end check used <code>nmap -sF -Pn --max-retries 0 -p 41051-41055 [monitored address]</code> and checked for one Wazuh rule <code>100346</code> alert. The target address is redacted.</p>
+          <p>The August 8 runbook records the change and acceptance sequence. A separate read-only audit on August 19 preserved the following selected output after later package updates had arrived:</p>
+          <p>Central host:</p>
+          <pre><code>booted_kernel=6.8.0-137-generic
+reboot_required=yes
+linux-image-6.8.0-138-generic
+wazuh-manager.service active=active
+wazuh-indexer.service active=active
+wazuh-dashboard.service active=active
+filebeat active=active</code></pre>
+          <p>Monitored endpoint:</p>
+          <pre><code>booted_kernel=6.8.0-137-generic
+reboot_required=yes
+linux-image-6.8.0-138-generic
+wazuh-agent.service active=active
+auditd.service active=active
+nginx.service active=active
+loaded_audit_rule_count=26
+HTTP/1.1 200 OK</code></pre>
+          <p>The August 19 reboot requirement came from a subsequent kernel update. An August 21 handoff records both hosts on kernel <code>6.8.0-138</code> with detection proven again after reboot; that handoff is a summary, not raw command output. Planned reboots interrupted service, but no unexpected post-maintenance service failure was recorded.</p>
         </section>
 
         <section>
