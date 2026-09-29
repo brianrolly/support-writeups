@@ -35,6 +35,26 @@
           <h2>The service issued trust before proving identity</h2>
           <p>The monitoring platform’s enrollment service was reachable and configured with password enforcement disabled. During an authorized test, a raw TLS enrollment request returned a valid agent key without a challenge.</p>
           <p>That key allowed the test host to become an active, trusted telemetry source. It then generated a fabricated authentication event that appeared in the central alert stream as if it came from a monitored system.</p>
+          <p>Selected excerpts from the August 20–21 exercise record show the path. The manager address and issued key are redacted; these checks came from different hosts and are not a continuous terminal transcript.</p>
+          <pre><code>1515/tcp open   agent enrollment
+&lt;use_password&gt;no&lt;/use_password&gt;
+wazuh-authd: Accepting connections on port 1515. No password required.</code></pre>
+          <p>From the authorized test host, a raw TLS request returned a manager-issued identity without a credential:</p>
+          <pre><code>echo "OSSEC A:'ROGUE-TEST-DELETEME'" | openssl s_client -connect [manager]:1515 -quiet
+OSSEC K:'002 ROGUE-TEST-DELETEME any [key redacted]'</code></pre>
+          <p>A second issued identity, agent <code>003</code>, became active in manager inventory:</p>
+          <pre><code>/var/ossec/bin/agent_control -l
+ID: 003, Name: ROGUE-TEST-2, IP: any, Active</code></pre>
+          <p>This test command and selected fields from the preserved alert export show what that identity could send:</p>
+          <pre><code>logger -t sshd "Failed password for invalid user PURPLEINJECT from 203.0.113.66 port 4444 ssh2"
+
+Exported alert, 2026-08-21 00:27:06 UTC
+agent.id:       003
+agent.name:     ROGUE-TEST-2
+rule.id/level:  5710 / 5
+data.srcuser:   PURPLEINJECT
+data.srcip:     203.0.113.66</code></pre>
+          <p>The source address in that alert is documentation-only space. The <a href="https://brianrolly.github.io/soc-lab-writeups/rogue-agent-event-comparison-sanitized.csv">sanitized 35-row alert comparison</a> contains 34 genuine SSH alerts and the fabricated row <code>E27</code> under the same agent identity and rule. The forged row still had detectable field and session-shape differences; the test proved alert forgery, not an indistinguishable copy.</p>
           <div class="fact-grid">
             <div class="fact"><span>Enrollment</span><strong>No password required</strong></div>
             <div class="fact"><span>Result</span><strong>Trusted agent identity issued</strong></div>
@@ -45,8 +65,8 @@
         <section>
           <p class="eyebrow">Containment and evidence</p>
           <h2>Stop the source without losing the record of what happened</h2>
-          <p>The unauthorized test agent was stopped and removed. The manager-side identities were deleted, and the injected records were removed from the active index after a sanitized evidence export was retained.</p>
-          <p>The service and manager logs were added to central collection so later enrollment, configuration posture, and removal activity could be investigated from the monitoring platform itself.</p>
+          <p>The test agent was stopped and removed. The recorded cleanup used <code>manage_agents -r 002</code> and <code>manage_agents -r 003</code>; manager inventory then showed only the authorized agent. After a sanitized evidence export was retained, an administrator removed 363 records attributed to agent 003 from the active index. That index deletion required separate manager-level access; the issued agent key did not grant it.</p>
+          <p>The manager’s <code>ossec.log</code> and API <code>api.log</code> were added to central collection so later enrollment, configuration posture, and authentication activity could be investigated from the monitoring platform itself.</p>
           <div class="callout"><p><strong>Key distinction:</strong> removing the agent stopped additional injection, but it did not correct the configuration that issued the identity. Containment and remediation were separate tasks.</p></div>
         </section>
 
@@ -54,20 +74,24 @@
           <p class="eyebrow">Root-cause remediation</p>
           <h2>Require a shared secret for enrollment</h2>
           <p>Password-protected enrollment was enabled, and the required secret file was configured on the manager. The enrollment port continued listening because legitimate agents still needed it, but possession of network access alone was no longer sufficient.</p>
-          <pre><code>before: enrollment reachable + password check disabled
-after:  enrollment reachable + shared-secret validation required</code></pre>
+          <p>Sanitized configuration comparison; the secret value is withheld:</p>
+          <pre><code>before: &lt;use_password&gt;no&lt;/use_password&gt;
+after:  &lt;use_password&gt;yes&lt;/use_password&gt;
+        authd.pass configured
+        TCP/1515 still listening</code></pre>
         </section>
 
         <section>
           <p class="eyebrow">Validation</p>
           <h2>Repeat the same request against the corrected system</h2>
-          <p>The exact unauthenticated enrollment method used during the validation was run again after the configuration change.</p>
+          <p>On August 21, the same unauthenticated request was repeated against the changed manager configuration. The recorded response was:</p>
+          <pre><code>echo "OSSEC A:'ROGUE-TEST-DELETEME'" | openssl s_client -connect [manager]:1515 -quiet
+ERROR: Invalid password. Unable to add agent</code></pre>
           <div class="result-list">
-            <div class="result"><span class="result-mark">✓</span><div>The manager rejected the request with an invalid-password error.</div></div>
-            <div class="result"><span class="result-mark">✓</span><div>The unauthorized test agents were no longer present in the manager inventory.</div></div>
-            <div class="result"><span class="result-mark">✓</span><div>Detection for enrollment and repeated API authentication attempts was re-tested against live events.</div></div>
-            <div class="result"><span class="result-mark">✓</span><div>An automated temporary network block was confirmed for repeated API authentication failures.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div>The manager rejected the original request without a password while TCP/1515 remained available for legitimate enrollment.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div>The two test identities were no longer present in manager inventory after cleanup.</div></div>
           </div>
+          <p>Separate live detection re-runs during the exercise fired enrollment rule <code>100361</code>. Nineteen API authentication failures (built-in rule <code>411</code>) triggered aggregate rule <code>100360</code> and a 600-second <code>firewall-drop</code>. Agent-removal rule <code>100363</code> passed <code>wazuh-logtest</code>; a live removal positive control was still outstanding.</p>
         </section>
 
         <section>
