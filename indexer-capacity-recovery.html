@@ -33,11 +33,12 @@
         <section>
           <p class="eyebrow">Situation</p>
           <h2>A query failed while the platform looked healthy</h2>
-          <p>A routine seven-day measurement was run against a single-node search and monitoring platform. One daily slice worked, but the remaining slices failed. Because the response was piped directly into a JSON processor, the first visible message was “cannot iterate over null.” That looked like a client-side data problem.</p>
+          <p>A detection-data aggregation ran against a single-node search and monitoring platform. A one-day window worked; widening the same query to a week failed. Because the response was piped directly into a JSON processor, the first visible message was “cannot iterate over null.” That looked like a client-side data problem.</p>
           <p>Reading the raw response exposed the actual failure: the search service had rejected the request because its parent circuit breaker was already near the configured heap limit.</p>
-          <pre><code>circuit_breaking_exception
-data for request would be approximately 974 MB
-configured parent limit was approximately 973 MB</code></pre>
+          <pre><code>circuit_breaking_exception: [parent] Data too large … 974.2mb,
+which is larger than the limit of 972.7mb
+  request=0b   fielddata=102.9kb   in_flight=1.1kb</code></pre>
+          <p>The preserved request searched <code>wazuh-alerts-*</code> for blocked firewall events and grouped them by source, protocol, and TCP flags, with destination cardinality counts. The companion writeup includes the full sanitized query.</p>
         </section>
 
         <section>
@@ -48,6 +49,19 @@ configured parent limit was approximately 973 MB</code></pre>
             <div class="fact"><span>Host memory</span><strong>12 GB, about 9 GB available</strong></div>
             <div class="fact"><span>Shard count</span><strong>540</strong></div>
           </div>
+          <h3>Read-only CLI checks</h3>
+          <p>The original shell transcript was not retained. These read-only commands reproduce the host, configuration, override, and JVM checks. A local curl configuration supplies authentication and trust settings; the endpoint remains private. The measurements above and the breaker excerpt are from the case record.</p>
+          <pre><code>free -h
+sudo grep -E '^-Xm[sx]' /etc/wazuh-indexer/jvm.options
+sudo find /etc/wazuh-indexer/jvm.options.d -maxdepth 1 -type f -print
+systemctl cat wazuh-indexer
+curl -sS --config "$INDEXER_CURL_CONFIG" \
+  "$INDEXER_URL/_nodes/stats/jvm" |
+  jq '.nodes[] | {
+    heap_max_bytes: .jvm.mem.heap_max_in_bytes,
+    heap_used_pct: .jvm.mem.heap_used_percent,
+    old_gc_count: .jvm.gc.collectors.old.collection_count
+  }'</code></pre>
           <p>The breaker report showed almost no request or field-data allocation. The query itself was not consuming the missing memory. The node was sitting at roughly 83 percent heap usage before it received the request.</p>
           <p>Old-generation garbage collection had not run in the observed period, providing no evidence of repeated full-collection thrashing. The breaker and heap measurements pointed to too little configured heap for the steady shard overhead.</p>
           <div class="callout"><p><strong>Root cause:</strong> a 1 GB JVM heap had been left on a 12 GB host. Standing per-shard overhead consumed most of it, leaving too little room for multi-day aggregations.</p></div>
@@ -57,7 +71,8 @@ configured parent limit was approximately 973 MB</code></pre>
           <p class="eyebrow">Change</p>
           <h2>Increase capacity without starving the rest of the host</h2>
           <p>The active JVM options were backed up. Competing overrides were checked in the drop-in directory and service unit. The minimum and maximum heap were then raised together from 1 GB to 4 GB.</p>
-          <pre><code>-Xms1g  →  -Xms4g
+          <pre><code>/etc/wazuh-indexer/jvm.options
+-Xms1g  →  -Xms4g
 -Xmx1g  →  -Xmx4g</code></pre>
           <p>Four gigabytes was chosen instead of allocating half of system memory because the monitoring manager, dashboard, shipper, and operating-system page cache shared the same host. The change required one planned service restart.</p>
         </section>
@@ -65,13 +80,14 @@ configured parent limit was approximately 973 MB</code></pre>
         <section>
           <p class="eyebrow">Validation</p>
           <h2>Verify the service and the workflow that failed</h2>
+          <p>After the planned restart, the JVM stats check was repeated and the previously failing week-long search was rerun. Service status alone would not have proved the query was fixed.</p>
           <div class="result-list">
             <div class="result"><span class="result-mark">✓</span><div><strong>Heap recognized:</strong> the restarted JVM reported a 4096 MB maximum and approximately 27 percent usage at rest.</div></div>
             <div class="result"><span class="result-mark">✓</span><div><strong>Cluster recovered:</strong> the single-node cluster returned to its expected yellow steady state with active primary shards.</div></div>
             <div class="result"><span class="result-mark">✓</span><div><strong>Ingestion resumed:</strong> the TCP log session re-established without manual intervention.</div></div>
-            <div class="result"><span class="result-mark">✓</span><div><strong>Original failure cleared:</strong> all seven daily slices of the previously failing query completed successfully.</div></div>
+            <div class="result"><span class="result-mark">✓</span><div><strong>Original failure cleared:</strong> the previously failing week-long aggregation completed successfully.</div></div>
           </div>
-          <p>One operational lesson also came out of the restart: a short red period was normal shard recovery, not proof of a failed change. Documenting the expected recovery state prevented another unnecessary rollback.</p>
+          <p>A brief red period during shard recovery was expected on this single-node deployment, before returning to yellow with active primary shards. An earlier restart had been rolled back unnecessarily when that recovery state was mistaken for failure.</p>
         </section>
 
         <section>
