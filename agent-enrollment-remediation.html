@@ -98,6 +98,7 @@ ERROR: Invalid password. Unable to add agent</code></pre>
           <p class="eyebrow">Remaining work</p>
           <h2>The primary flaw was closed, but the management plane still needed hardening</h2>
           <div class="callout warning"><p>Password-gated enrollment was verified. Related follow-ups remained for API network exposure, host firewall policy, and visibility into privileged bulk deletion. This case is therefore labeled “primary exposure fixed,” not fully closed.</p></div>
+          <p>LLM prompt injection was outside this test: no model consumed the forged alert. A follow-up article will investigate whether attacker-controlled alert text can influence an AI-assisted SOC workflow.</p>
           <p>For the command and alert excerpts behind this case, see the <a href="https://brianrolly.github.io/soc-lab-writeups/rogue-agent-log-injection.html">companion technical writeup</a>.</p>
         </section>
       </article>
