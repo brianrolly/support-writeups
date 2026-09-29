@@ -33,7 +33,7 @@
         <section>
           <p class="eyebrow">Situation</p>
           <h2>The sensor logged an event that the destination never received</h2>
-          <p>A controlled network event appeared in the firewall’s local JSON event log but was absent from the central archive. The path used remote syslog over UDP, which provides no delivery acknowledgement and no durable queue.</p>
+          <p>A controlled network event appeared in the firewall’s local JSON event log, <code>/var/log/suricata/eve.json</code>, but was absent from the central archive, <code>/var/ossec/logs/archives/archives.json</code>. The path used remote syslog over UDP, which provides no delivery acknowledgement and no durable queue.</p>
           <p>The goal was not to replace every logging path at once. It was to establish a more reliable route for the highest-value JSON events while preserving the existing path as a rollback option.</p>
         </section>
 
@@ -42,36 +42,47 @@
           <h2>Run the replacement beside the working path</h2>
           <ol>
             <li>Capture service state, listeners, configuration hashes, and the current network session.</li>
-            <li>Back up both endpoint configurations before making any change.</li>
+            <li>Back up the receiver’s <code>/var/ossec/etc/ossec.conf</code> and firewall’s <code>/conf/config.xml</code> before making any change.</li>
             <li>Add a source-restricted TCP listener on the receiving platform.</li>
             <li>Add a narrowly scoped TCP destination on the firewall.</li>
             <li>Validate generated configuration and service syntax before restart.</li>
             <li>Send unique markers and fresh events while UDP remained available.</li>
             <li>Remove only the target event class from UDP after the parallel test passed.</li>
           </ol>
+          <p>The dated record shows that each pre-change configuration and its backup had matching SHA-256 hashes before activation.</p>
           <div class="callout"><p><strong>Rollback remained simple:</strong> disable the new destination and listener. The existing UDP route stayed intact until the final cutover was proven.</p></div>
         </section>
 
         <section>
           <p class="eyebrow">Implementation</p>
           <h2>Validate configuration before activation</h2>
-          <p>The receiver was configured with a TCP listener restricted to the firewall’s source address. The firewall’s generated syslog configuration was limited to the event program, the intended facility and severity, and the new destination port.</p>
+          <p>The receiver’s <code>/var/ossec/etc/ossec.conf</code> gained a TCP listener restricted to the firewall’s source address. On OPNsense, <code>/conf/config.xml</code> held the persistent syslog target; a template reload rendered <code>/usr/local/etc/syslog-ng.conf</code>. The generated destination was limited to the event program, the intended facility and severity, and TCP port 5514.</p>
           <p>A missing XML validation utility on the server did not justify skipping the check. The candidate configuration was wrapped and validated with a trusted XML parser from the administrative workstation before installation. The active service’s own test mode was then used before restart.</p>
-          <p>Selected, sanitized excerpts from the dated change record show the receiver input and the checks used before activation. The commands are preserved from the record; the service states below are recorded observations, not a full terminal transcript.</p>
+          <p>Selected, sanitized excerpts from the dated change record show the receiver input and the checks used during activation. The socket filter below omits a private address; the service states are recorded observations, not a full terminal transcript.</p>
           <pre><code>&lt;remote&gt;
   &lt;connection&gt;syslog&lt;/connection&gt;
   &lt;port&gt;5514&lt;/port&gt;
   &lt;protocol&gt;tcp&lt;/protocol&gt;
   &lt;allowed-ips&gt;[firewall source redacted]&lt;/allowed-ips&gt;
 &lt;/remote&gt;</code></pre>
-          <pre><code>Receiver checks:
+          <p>The generated TCP destination had these recorded selectors; its address and identifier are omitted:</p>
+          <pre><code>program("suricata")
+level(info)
+facility(local5)
+transport("tcp")
+port(5514)</code></pre>
+          <pre><code>Receiver activation and checks:
 /var/ossec/bin/wazuh-analysisd -t
+systemctl restart wazuh-manager
 systemctl is-active wazuh-manager
 ss -lunpt | grep -E '(^Netid|:514[[:space:]]|:5514[[:space:]])'
 
-Firewall checks:
+Firewall render, activation, and checks:
+configctl template reload OPNsense/Syslog
 syslog-ng --syntax-only -f /usr/local/etc/syslog-ng.conf
-configctl syslog status</code></pre>
+configctl syslog restart
+configctl syslog status
+sockstat -4 -6 -c | grep ':5514'</code></pre>
           <p>At 06:42 UTC, the recorded receiver state was <code>wazuh-manager: active</code>, with UDP/514 retained and TCP/5514 listening. The firewall’s generated configuration passed the syntax check, syslog-ng was running, and a TCP session to port 5514 was established.</p>
           <p>An early marker also exposed a quoting problem that stripped JSON quotation marks. That message still proved transport delivery, but it did not count as structured-data acceptance. A corrected JSON marker was sent and decoded before the change moved forward.</p>
         </section>
@@ -106,7 +117,13 @@ TCP_PROGRAMS=suricata</code></pre>
           <pre><code>nmap -sF -Pn -n -e ens18 --send-ip --packet-trace \
   --max-retries 0 --scan-delay 100ms --reason \
   -p 65360-65364 [monitored address]</code></pre>
-          <p>The recorded observations compare the earlier missing event with this separate test. Counts refer to matching records in the stated test window; the TCP counters are cumulative.</p>
+          <p>The three acceptance stages map to these standard files:</p>
+          <ul>
+            <li>Source event: <code>/var/log/suricata/eve.json</code></li>
+            <li>Archived copy: <code>/var/ossec/logs/archives/archives.json</code></li>
+            <li>Classified alert: <code>/var/ossec/logs/alerts/alerts.json</code></li>
+          </ul>
+          <p>The change record preserves the counts below, not the raw JSON lines. Counts refer to matching records in the stated test window; the TCP counters are cumulative.</p>
           <pre><code>Earlier control event, before cutover
   firewall EVE log:         present
   central archive match:   absent
